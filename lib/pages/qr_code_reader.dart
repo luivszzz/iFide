@@ -39,16 +39,59 @@ class _QrCodeReaderState extends State<QrCodeReader> {
 
   Future<void> addUserToStamp(var barcode) async {
     Map<String, dynamic> stampsMap = widget.userData.data();
+    var docUserInfo = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(barcode)
+        .get()
+        .then((value) {
+      return value;
+    });
+
+    Map<String, dynamic>? stampsMapClient = docUserInfo.data();
 
     final docUser = FirebaseFirestore.instance.collection('users').doc(barcode);
-    final stampConfiguration = {
-      'stamp_description': stampsMap['stamps'][widget.stampName]
-          ['stamp_description'],
-      'stamp_reward': stampsMap['stamps'][widget.stampName]['stamp_reward'],
-      'stamp_quantity': stampsMap['stamps'][widget.stampName]['stamp_quantity'],
-    };
-    final stampName = 'stamps.${widget.stampName}';
-    docUser.update({stampName: stampConfiguration});
+
+    if (stampsMapClient!.containsKey('stamps')) {
+      if (stampsMapClient['stamps'].containsKey(widget.stampName)) {
+        String stampQuantityString =
+            stampsMapClient['stamps'][widget.stampName]['stamp_quantity'];
+
+        String stampQuantityStringStart =
+            stampQuantityString.substring(0, stampQuantityString.indexOf('/'));
+        String stampQuantityStringEnd =
+            stampQuantityString.substring(stampQuantityString.indexOf('/') + 1);
+
+        int stampQuantity = int.parse(stampQuantityStringStart) + 1;
+        stampQuantityString =
+            stampQuantity.toString() + '/' + stampQuantityStringEnd;
+
+        docUser.update({
+          'stamps.' + widget.stampName + '.' + 'stamp_quantity':
+              stampQuantityString
+        });
+      } else {
+        final stampConfiguration = {
+          'stamp_description': stampsMap['stamps'][widget.stampName]
+              ['stamp_description'],
+          'stamp_reward': stampsMap['stamps'][widget.stampName]['stamp_reward'],
+          'stamp_quantity':
+              '1/' + stampsMap['stamps'][widget.stampName]['stamp_quantity'],
+        };
+        final stampName = 'stamps.${widget.stampName}';
+        docUser.update({stampName: stampConfiguration});
+      }
+    } else {
+      final stampConfiguration = {
+        'stamp_description': stampsMap['stamps'][widget.stampName]
+            ['stamp_description'],
+        'stamp_reward': stampsMap['stamps'][widget.stampName]['stamp_reward'],
+        'stamp_quantity':
+            '1/' + stampsMap['stamps'][widget.stampName]['stamp_quantity'],
+      };
+      final stampName = 'stamps.${widget.stampName}';
+      docUser.update({stampName: stampConfiguration});
+    }
+
     controller!.pauseCamera();
     setState(() {
       testText = 'Adicionado';
